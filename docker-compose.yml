@@ -59,7 +59,7 @@ services:
     image: postgres:15-alpine
     container_name: upi_postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-upidb}
       POSTGRES_USER: ${POSTGRES_USER:-upiuser}

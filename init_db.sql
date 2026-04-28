@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS raw.transactions (
     loaded_at           TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE raw.transactions ADD CONSTRAINT transactions_txn_id_pkey PRIMARY KEY (txn_id);
+
 -- Index on txn_id for fast deduplication queries
 -- dbt's stg_transactions.sql does ROW_NUMBER() OVER (PARTITION BY txn_id)
 -- This index makes that partition scan significantly faster
