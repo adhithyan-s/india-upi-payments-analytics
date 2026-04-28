@@ -1,6 +1,5 @@
 """
-Generates synthetic UPI transaction data and writes it to MinIO
-as partitioned Parquet files (Bronze layer).
+Generates synthetic UPI transaction data and writes it to MinIO as partitioned Parquet files (Bronze layer).
  
 Flow:
     Python (this script)
@@ -75,8 +74,8 @@ def get_s3_client():
     """
     Returns a boto3 S3 client configured for MinIO.
  
-    This is identical boto3 code that works
-    against AWS S3 in production. The only difference is endpoint_url.
+    This is identical boto3 code that works against AWS S3 in production. 
+    The only difference is endpoint_url.
     In production, set MINIO_ENDPOINT=https://s3.amazonaws.com and
     update credentials — zero code changes required.
     """
@@ -371,8 +370,7 @@ def main():
     city_weights_norm = city_weights_norm / city_weights_norm.sum()
  
     merchant_codes = [m["category_code"] for m in MERCHANT_CATEGORIES]
-    raw_merchant_weights = np.array([m["weight"] for m in MERCHANT_CATEGORIES],
-                                    dtype=float)
+    raw_merchant_weights = np.array([m["weight"] for m in MERCHANT_CATEGORIES], dtype=float)
     merchant_weights = raw_merchant_weights / raw_merchant_weights.sum()
     merchant_lookup = {m["category_code"]: m for m in MERCHANT_CATEGORIES}
  
@@ -427,7 +425,7 @@ def main():
     txns_per_date[0] += diff
  
     # ----------------------------------------------------------
-    # Main generation loop — date by date, batch by batch
+    # Main generation loop — date-by-date, batch-by-batch
     # ----------------------------------------------------------
     total_written = 0
     total_files = 0
