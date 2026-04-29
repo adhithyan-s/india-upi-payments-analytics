@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: fact_transactions
+    description: "One row per UPI transaction. Grain: txn_sk (one transaction)."
+    columns:
+      - name: txn_sk
+        tests:
+          - unique
+          - not_null
+      - name: txn_id
+        tests:
+          - unique
+          - not_null
+      - name: amount_inr
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['SUCCESS', 'FAILED', 'PENDING']
+      - name: location_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_location')
+              field: location_sk
+      - name: date_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: merchant_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_merchant')
+              field: merchant_sk
+      - name: upi_app_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_upi_app')
+              field: upi_app_sk
+      - name: payment_type_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_payment_type')
+              field: payment_type_sk
+
+  - name: dim_location
+    description: "Indian cities with state, region, and tier classification"
+    columns:
+      - name: location_sk
+        tests:
+          - unique
+          - not_null
+      - name: city
+        tests:
+          - unique
+          - not_null
+      - name: tier
+        tests:
+          - accepted_values:
+              values: ['Tier 1', 'Tier 2', 'Tier 3']
+
+  - name: dim_date
+    description: "Calendar dimension covering 2023-01-01 to 2024-12-31"
+    columns:
+      - name: date_sk
+        tests:
+          - unique
+          - not_null
+      - name: date_day
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_merchant
+    description: "UPI merchant categories"
+    columns:
+      - name: merchant_sk
+        tests:
+          - unique
+          - not_null
+      - name: category_code
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_upi_app
+    description: "UPI payment applications"
+    columns:
+      - name: upi_app_sk
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_payment_type
+    description: "Payment type classification"
+    columns:
+      - name: payment_type_sk
+        tests:
+          - unique
+          - not_null

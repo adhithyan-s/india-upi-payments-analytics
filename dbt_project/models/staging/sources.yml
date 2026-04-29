@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: "Raw UPI transaction data loaded from MinIO Bronze layer"
+    tables:
+      - name: transactions
+        description: "Raw UPI transactions — one row per transaction as loaded from Parquet"
+        columns:
+          - name: txn_id
+            description: "Unique transaction identifier"
+          - name: amount_inr
+            description: "Transaction amount in Indian Rupees"
+          - name: city
+            description: "City where transaction originated"
+          - name: merchant_category
+            description: "Merchant category code"
+          - name: upi_app
+            description: "UPI app used for the transaction"
+          - name: payment_type
+            description: "Payment type code (p2p, p2m, etc)"
+          - name: status
+            description: "Transaction status"
+          - name: created_at
+            description: "Transaction timestamp in UTC"

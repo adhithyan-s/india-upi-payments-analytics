@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: stg_transactions
+    description: "Cleaned and deduplicated UPI transactions from raw layer"
+    columns:
+      - name: txn_id
+        description: "Unique transaction ID"
+        tests:
+          - unique
+          - not_null
+
+      - name: amount_inr
+        description: "Transaction amount — must be positive"
+        tests:
+          - not_null
+
+      - name: status
+        description: "Transaction outcome"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['SUCCESS', 'FAILED', 'PENDING']
+
+      - name: city
+        tests:
+          - not_null
+
+      - name: merchant_category
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'food_delivery'
+                - 'retail'
+                - 'utilities'
+                - 'travel'
+                - 'recharge'
+                - 'p2p_transfer'
+                - 'education'
+                - 'healthcare'
+                - 'entertainment'
+                - 'grocery'
+                - 'fuel'
+                - 'insurance'
+                - 'investment'
+                - 'gaming'
+                - 'govt_services'
+
+      - name: upi_app
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['phonepe', 'google pay', 'paytm', 'bhim', 'amazon pay']
+
+      - name: txn_date
+        tests:
+          - not_null

@@ -176,7 +176,7 @@ def insert_batch(cur, rows):
         INSERT INTO raw.transactions (
             txn_id, amount_inr, city, state, merchant_category,
             upi_app, payment_type, status, failure_reason,
-            txn_date, txn_hour, is_weekend, sender_upi,
+            txn_date, txn_hour, is_weekend, is_festival, sender_upi,
             receiver_upi, device_type, created_at, loaded_at
         )
         VALUES %s
@@ -205,6 +205,7 @@ def df_to_rows(df, city_state_map):
             r["txn_date"],
             r["txn_hour"],
             r["is_weekend"],
+            bool(r["is_festival"]),
             r["sender_upi"],
             r["receiver_upi"],
             r["device_type"],
