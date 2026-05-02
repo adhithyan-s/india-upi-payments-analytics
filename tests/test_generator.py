@@ -1,7 +1,7 @@
 """
 Unit tests for the UPI transaction generator.
 
-These tests run in GitHub Actions CI/CD on every push. 
+These tests run in GitHub Actions CI/CD on every push.
 A failing test blocks the merge — data quality starts at generation, not just in the warehouse.
 
 Run with: make test
@@ -17,7 +17,7 @@ from datetime import date
 # Add generator/ to path so we can import from it
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "generator"))
 
-from generator.config import (
+from generator.config import (  # noqa: E402
     CITIES,
     MERCHANT_CATEGORIES,
     UPI_APPS,
@@ -26,7 +26,7 @@ from generator.config import (
     HOUR_WEIGHTS,
     get_city_weights,
 )
-from generator.generate_transactions import (
+from generator.generate_transactions import (   # noqa: E402
     build_object_key,
     build_date_range,
     df_to_parquet_bytes,
@@ -240,7 +240,7 @@ class TestGeneratedData:
 
     def test_amounts_are_positive(self, sample_df):
         """
-        This is also tested as a dbt singular test (assert_no_negative_amounts.sql). 
+        This is also tested as a dbt singular test (assert_no_negative_amounts.sql).
         We test it here too because catching it at generation is cheaper than
         catching it after loading 50M rows.
         """
@@ -333,8 +333,8 @@ class TestParquetSerialisation:
 
     def test_parquet_bytes_readable(self, sample_df):
         """
-        round-trip test — serialise to Parquet bytes then read back. 
-        Verifies the bytes are valid Parquet, not just non-empty. 
+        round-trip test — serialise to Parquet bytes then read back.
+        Verifies the bytes are valid Parquet, not just non-empty.
         Row count and column count must match.
         """
         import io

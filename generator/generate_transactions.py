@@ -1,30 +1,30 @@
 """
 Generates synthetic UPI transaction data and writes it to MinIO as partitioned Parquet files (Bronze layer).
- 
+
 Flow:
     Python (this script)
         -> generates batches of UPI transactions as DataFrames
         -> serialises each batch to Parquet (Snappy compressed)
         -> uploads to MinIO: upi-lake/year=YYYY/month=MM/city=CCC/batch_NNN.parquet
- 
+
 Usage:
     python generator/generate_transactions.py
     (or via: make generate)
 """
- 
+
 import io
 import os
 import uuid
 import logging
 import warnings
 from datetime import datetime, timedelta, timezone
- 
+
 import boto3
 import numpy as np
 import pandas as pd
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
- 
+
 from config import (
     CITIES,
     FESTIVAL_DATES,
@@ -39,10 +39,10 @@ from config import (
     WEEKEND_MULTIPLIER,
     get_city_weights,
 )
- 
+
 # Suppress pandas future warnings in output
 warnings.filterwarnings("ignore", category=FutureWarning)
- 
+
 # ----------------------------------------------------------
 # Logging setup
 # ----------------------------------------------------------
@@ -52,11 +52,11 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger(__name__)
- 
+
 # Load environment variables from .env file
 load_dotenv()
- 
- 
+
+
 # ----------------------------------------------------------
 # Configuration from environment variables
 # ----------------------------------------------------------
@@ -73,8 +73,8 @@ BATCH_SIZE = int(os.getenv("BATCH_SIZE", "20000"))
 def get_s3_client():
     """
     Returns a boto3 S3 client configured for MinIO.
- 
-    This is identical boto3 code that works against AWS S3 in production. 
+
+    This is identical boto3 code that works against AWS S3 in production.
     The only difference is endpoint_url.
     In production, set MINIO_ENDPOINT=https://s3.amazonaws.com and
     update credentials — zero code changes required.
@@ -134,8 +134,8 @@ def generate_batch(
 ):
     """
     Generates one batch of UPI transactions as a DataFrame.
- 
-    Used numpy for all random generation instead of Python's random module. 
+
+    Used numpy for all random generation instead of Python's random module.
     Numpy generates entire arrays at once (vectorised) — dramatically faster than looping and calling random() for each row.
     """
     n = batch_size
@@ -144,7 +144,7 @@ def generate_batch(
 
     # ----------------------------------------------------------
     # Pick hours for each transaction using hour weights
-    # rng.choice with p= draws from a probability distribution — not uniform random. 
+    # rng.choice with p= draws from a probability distribution — not uniform random.
     # This produces realistic time-of-day patterns (lunch/dinner peaks) instead of flat random hours.
     # ----------------------------------------------------------
     hours = rng.choice(24, size=n, p=hour_weights_norm)
@@ -163,8 +163,8 @@ def generate_batch(
 
     # ----------------------------------------------------------
     # Generate transaction amounts using normal distribution per merchant category
-    # Each merchant category has its own mean and std deviation. 
-    # Food delivery amounts cluster around ₹380. 
+    # Each merchant category has its own mean and std deviation.
+    # Food delivery amounts cluster around ₹380.
     # Travel amounts are higher and more spread out.
     # numpy.clip ensures no negative amounts and no unrealistic outliers beyond the category maximum.
     # ----------------------------------------------------------
@@ -208,7 +208,7 @@ def generate_batch(
 
     # ----------------------------------------------------------
     # Build timestamps
-    # All timestamps stored as UTC with timezone info (TIMESTAMPTZ in PostgreSQL). 
+    # All timestamps stored as UTC with timezone info (TIMESTAMPTZ in PostgreSQL).
     # Converting to IST is done in the presentation layer (Grafana panel offset or a dim_date column) — never in the raw data itself.
     # Storing raw UTC prevents timezone bugs when querying across systems.
     # ----------------------------------------------------------
@@ -241,13 +241,13 @@ def generate_batch(
         ]
         handle = rng.choice(bank_handles)
         return f"{''.join(parts)}@{handle}"
-    
+
     sender_upis = [make_upi_id() for _ in range(n)]
     receiver_upis = [make_upi_id() for _ in range(n)]
 
     # ----------------------------------------------------------
     # Generate unique transaction IDs
-    # UUIDs guarantee uniqueness across distributed systems. 
+    # UUIDs guarantee uniqueness across distributed systems.
     # We use uuid4() (random UUID) rather than uuid1() (time-based) to avoid collisions when generating data in parallel batches.
     # Prefix "TXN" makes it identifiable in logs and queries.
     # ----------------------------------------------------------
@@ -279,7 +279,7 @@ def generate_batch(
 def df_to_parquet_bytes(df):
     """
     Serialises a DataFrame to Parquet bytes using Snappy compression.
- 
+
     Snappy is the standard compression codec for data lake Parquet files. It's a balanced choice:
     - Better compression ratio than uncompressed (8-10x)
     - Faster decompression than gzip (important for query speed)
@@ -288,7 +288,7 @@ def df_to_parquet_bytes(df):
     """
     buffer = io.BytesIO()
     df.to_parquet(
-        buffer, 
+        buffer,
         index=False,
         compression="snappy",
         engine="pyarrow",
@@ -300,9 +300,9 @@ def df_to_parquet_bytes(df):
 def upload_to_minio(s3_client, bucket, key, parquet_bytes):
     """
     Uploads Parquet bytes to MinIO under the given key.
- 
-    PUT to object storage is naturally idempotent. 
-    Uploading the same key twice overwrites the first object — it does NOT create a duplicate. 
+
+    PUT to object storage is naturally idempotent.
+    Uploading the same key twice overwrites the first object — it does NOT create a duplicate.
     This means if the generator crashes and restarts, re-uploading the
     same batch is completely safe. No duplicates in the lake.
     """
@@ -317,12 +317,12 @@ def upload_to_minio(s3_client, bucket, key, parquet_bytes):
 def build_object_key(year, month, city, batch_num):
     """
     Builds the Hive-style partition key for MinIO storage.
- 
+
     This is THE most important naming decision
     in the entire project. The folder structure IS the partition.
- 
+
     year=2024/month=01/city=Mumbai/batch_0001.parquet
- 
+
     Why this format?
     1. Hive convention — Spark, Athena, dbt all parse year=/month=/
        automatically for partition pruning
@@ -331,7 +331,7 @@ def build_object_key(year, month, city, batch_num):
     3. Enables partition pruning — a query WHERE month='2024-01'
        AND city='Mumbai' reads ONLY matching folders
     4. city= allows city-level queries to skip all other cities
- 
+
     The '=' in 'year=2024' is not decoration — it's the Hive
     partition format that query engines recognise.
     """
@@ -354,13 +354,13 @@ def main():
     log.info(f"MinIO endpoint      : {MINIO_ENDPOINT}")
     log.info(f"Bucket              : {MINIO_BUCKET}")
     log.info("")
- 
+
     # ----------------------------------------------------------
     # Initialise S3 client and bucket
     # ----------------------------------------------------------
     s3 = get_s3_client()
     ensure_bucket_exists(s3, MINIO_BUCKET)
- 
+
     # ----------------------------------------------------------
     # Pre-compute lookup structures for fast generation
     # ----------------------------------------------------------
@@ -368,30 +368,30 @@ def main():
     raw_city_weights = get_city_weights(CITIES)
     city_weights_norm = np.array(raw_city_weights)
     city_weights_norm = city_weights_norm / city_weights_norm.sum()
- 
+
     merchant_codes = [m["category_code"] for m in MERCHANT_CATEGORIES]
     raw_merchant_weights = np.array([m["weight"] for m in MERCHANT_CATEGORIES], dtype=float)
     merchant_weights = raw_merchant_weights / raw_merchant_weights.sum()
     merchant_lookup = {m["category_code"]: m for m in MERCHANT_CATEGORIES}
- 
+
     payment_codes = [p[0] for p in PAYMENT_TYPES]
     raw_payment_weights = np.array([p[2] for p in PAYMENT_TYPES], dtype=float)
     payment_weights = raw_payment_weights / raw_payment_weights.sum()
- 
+
     app_names = [a[0] for a in UPI_APPS]
     raw_app_weights = np.array([a[3] for a in UPI_APPS], dtype=float)
     app_weights = raw_app_weights / raw_app_weights.sum()
- 
+
     status_values = [s[0] for s in STATUSES]
     status_probs = np.array([s[1] for s in STATUSES])
- 
+
     failure_reasons = [f[0] for f in FAILURE_REASONS]
     failure_probs = np.array([f[1] for f in FAILURE_REASONS])
     failure_probs = failure_probs / failure_probs.sum()
- 
+
     device_types = [d[0] for d in DEVICE_TYPES]
     device_probs = np.array([d[1] for d in DEVICE_TYPES])
- 
+
     hour_weights_arr = np.array(HOUR_WEIGHTS, dtype=float)
     hour_weights_norm = hour_weights_arr / hour_weights_arr.sum()
 
@@ -414,16 +414,16 @@ def main():
 
     date_weights_arr = np.array(date_weights)
     date_weights_norm = date_weights_arr / date_weights_arr.sum()
- 
+
     # Assign transaction counts per date
     txns_per_date = np.round(
         date_weights_norm * NUM_TRANSACTIONS
     ).astype(int)
- 
+
     # Adjust for rounding — make sure total equals NUM_TRANSACTIONS
     diff = NUM_TRANSACTIONS - txns_per_date.sum()
     txns_per_date[0] += diff
- 
+
     # ----------------------------------------------------------
     # Main generation loop — date-by-date, batch-by-batch
     # ----------------------------------------------------------
@@ -435,7 +435,7 @@ def main():
         n_for_date = int(txns_per_date[date_idx])
         if n_for_date == 0:
             continue
- 
+
         # Generate all transactions for this date at once
         day_df = generate_batch(
             rng=rng,
@@ -461,7 +461,7 @@ def main():
 
         # ----------------------------------------------------------
         # Split by city and write one Parquet file per city per day
-        # groupby city BEFORE writing creates the city= partition naturally. 
+        # groupby city BEFORE writing creates the city= partition naturally.
         # All Mumbai transactions for this date land in year=X/month=Y/city=Mumbai/
         # A query filtering city='Mumbai' skips all other city folders.
         # ----------------------------------------------------------
@@ -470,22 +470,22 @@ def main():
             # ~4MB per file — avoids small files problem
             num_batches = max(1, len(city_df) // BATCH_SIZE)
             city_batches = np.array_split(city_df, num_batches)
- 
+
             for batch_num, batch_df in enumerate(city_batches):
                 if len(batch_df) == 0:
                     continue
- 
+
                 key = build_object_key(
                     year=date.year,
                     month=date.month,
                     city=city,
                     batch_num=batch_num,
                 )
- 
+
                 parquet_bytes = df_to_parquet_bytes(batch_df)
                 upload_to_minio(s3, MINIO_BUCKET, key, parquet_bytes)
                 total_files += 1
- 
+
         total_written += n_for_date
 
         # Progress logging every 30 days

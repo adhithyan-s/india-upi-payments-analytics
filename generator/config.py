@@ -122,10 +122,12 @@ CITIES = [
 
 # ----------------------------------------------------------
 # City transaction volume weights
-# Tier 1 cities generate far more UPI volume than Tier 3. 
+# Tier 1 cities generate far more UPI volume than Tier 3.
 # These weights reflect real NPCI data where metros account for ~65% of total UPI transaction value.
 # Weights don't need to sum to 1 — numpy normalises them.
 # ----------------------------------------------------------
+
+
 def get_city_weights(cities):
     weights = []
     for _, _, _, tier, is_metro in cities:
@@ -168,7 +170,7 @@ UPI_APPS = [
 # - weight: how often this category appears in transactions
 # - failure_rate: fraction of transactions that fail
 # - typical_hours: peak hours for this category (24h)
-#---------------------------------------------------------------
+# ---------------------------------------------------------------
 MERCHANT_CATEGORIES = [
     {
         "category_code":  "food_delivery",

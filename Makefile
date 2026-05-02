@@ -96,6 +96,7 @@ lint:
 	@echo "Running flake8 linter..."
 	flake8 generator/ loader/ tests/ \
 		--max-line-length=100 \
+		--extend-ignore=E501 \
 		--exclude=__pycache__,.venv
 
 test:

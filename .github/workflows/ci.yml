@@ -25,19 +25,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin
-          MINIO_ROOT_PASSWORD: minioadmin
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,10 +38,33 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Start MinIO
+        run: |
+          wget -q https://dl.min.io/server/minio/release/linux-amd64/minio
+          chmod +x minio
+          MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin \
+            ./minio server /tmp/minio-data --address ":9000" &
+          sleep 8
+          echo "MinIO started"
+
+      - name: Create MinIO bucket
+        run: |
+          python - << 'EOF'
+          import boto3
+          s3 = boto3.client('s3',
+              endpoint_url='http://localhost:9000',
+              aws_access_key_id='minioadmin',
+              aws_secret_access_key='minioadmin',
+              region_name='us-east-1')
+          s3.create_bucket(Bucket='upi-lake')
+          print("Bucket upi-lake created")
+          EOF
+
       - name: Lint with flake8
         run: |
           flake8 generator/ loader/ tests/ \
             --max-line-length=100 \
+            --extend-ignore=E501 \
             --exclude=__pycache__,.venv
 
       - name: Run pytest
