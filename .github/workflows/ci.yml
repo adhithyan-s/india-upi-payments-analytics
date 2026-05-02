@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: upidb
+          POSTGRES_USER: upiuser
+          POSTGRES_PASSWORD: upipassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with flake8
+        run: |
+          flake8 generator/ loader/ tests/ \
+            --max-line-length=100 \
+            --exclude=__pycache__,.venv
+
+      - name: Run pytest
+        run: pytest tests/ -v --tb=short
+        env:
+          MINIO_ENDPOINT: http://localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_BUCKET: upi-lake
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: upidb
+          POSTGRES_USER: upiuser
+          POSTGRES_PASSWORD: upipassword
+
+      - name: Initialise PostgreSQL schemas
+        run: |
+          PGPASSWORD=upipassword psql -h localhost -U upiuser -d upidb -f init_db.sql
+        env:
+          PGPASSWORD: upipassword
+
+      - name: Create dbt profiles for CI
+        run: |
+          cat > dbt_project/profiles.yml << 'EOF'
+          upi_payments:
+            target: ci
+            outputs:
+              ci:
+                type: postgres
+                host: localhost
+                port: 5432
+                dbname: upidb
+                user: upiuser
+                password: upipassword
+                schema: ci
+                threads: 4
+          EOF
+
+      - name: Install dbt packages
+        run: |
+          cd dbt_project
+          dbt deps --profiles-dir .
+
+      - name: Generate small test dataset
+        run: python generator/generate_transactions.py
+        env:
+          MINIO_ENDPOINT: http://localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_BUCKET: upi-lake
+          NUM_TRANSACTIONS: 50000
+          START_DATE: 2024-01-01
+          END_DATE: 2024-03-31
+          BATCH_SIZE: 5000
+
+      - name: Load data into PostgreSQL
+        run: python loader/load_to_postgres.py
+        env:
+          MINIO_ENDPOINT: http://localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_BUCKET: upi-lake
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: upidb
+          POSTGRES_USER: upiuser
+          POSTGRES_PASSWORD: upipassword
+
+      - name: Run dbt models
+        run: |
+          cd dbt_project
+          dbt run --profiles-dir .
+
+      - name: Run dbt tests
+        run: |
+          cd dbt_project
+          dbt test --profiles-dir .
