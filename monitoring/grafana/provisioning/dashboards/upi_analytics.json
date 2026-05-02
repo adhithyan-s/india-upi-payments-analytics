@@ -1,0 +1,413 @@
+{
+  "title": "India UPI Payments Analytics",
+  "uid": "upi-analytics-v1",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "2023-01-01", "to": "2024-12-31" },
+  "timepicker": {},
+  "timezone": "Asia/Kolkata",
+  "tags": ["upi", "payments", "india"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Transactions",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) as value FROM dev_marts.fact_transactions",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "mappings": []
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Total Transaction Value (₹)",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(amount_inr) as value FROM dev_marts.fact_transactions",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyINR",
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Overall Success Rate",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(SUM(is_success_int) * 100.0 / COUNT(*), 2) as value FROM dev_marts.fact_transactions",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 85 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Average Transaction Value (₹)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(AVG(amount_inr), 2) as value FROM dev_marts.fact_transactions WHERE is_success = true",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyINR",
+          "color": { "mode": "fixed", "fixedColor": "orange" }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Cities Covered",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(DISTINCT location_sk) as value FROM dev_marts.fact_transactions",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "fixed", "fixedColor": "purple" }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Monthly Transaction Volume",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT DATE_TRUNC('month', d.date_day) as time, COUNT(*) as \"Transactions\", SUM(f.amount_inr) as \"Amount (INR)\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_date d ON f.date_sk = d.date_sk GROUP BY 1 ORDER BY 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Amount (INR)" },
+            "properties": [{ "id": "unit", "value": "currencyINR" }]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Transaction Volume by Hour of Day",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT txn_hour as \"Hour\", COUNT(*) as \"Transactions\" FROM dev_marts.fact_transactions GROUP BY txn_hour ORDER BY txn_hour",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "xField": "Hour",
+        "orientation": "auto",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Top 10 Cities by Transaction Volume",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT l.city as \"City\", COUNT(*) as \"Transactions\", ROUND(SUM(f.amount_inr)/1000000, 2) as \"Amount (M INR)\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_location l ON f.location_sk = l.location_sk GROUP BY l.city ORDER BY COUNT(*) DESC LIMIT 10",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "xField": "City",
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Transaction Split by Merchant Category",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT m.category_name as \"Category\", COUNT(*) as \"Transactions\", ROUND(SUM(f.amount_inr)/1000000, 2) as \"Amount (M INR)\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_merchant m ON f.merchant_sk = m.merchant_sk GROUP BY m.category_name ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "xField": "Category",
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 10,
+      "title": "UPI App Market Share",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 20, "w": 8, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT u.app_name as \"App\", COUNT(*) as \"Transactions\", ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) as \"Share %\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_upi_app u ON f.upi_app_sk = u.upi_app_sk GROUP BY u.app_name ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "xField": "App",
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Success Rate by City Tier",
+      "type": "barchart",
+      "gridPos": { "x": 8, "y": 20, "w": 8, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT l.tier as \"Tier\", ROUND(SUM(f.is_success_int) * 100.0 / COUNT(*), 2) as \"Success Rate %\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_location l ON f.location_sk = l.location_sk GROUP BY l.tier ORDER BY l.tier",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 80,
+          "max": 100,
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "xField": "Tier",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 12,
+      "title": "P2P vs P2M vs Other Payment Types",
+      "type": "barchart",
+      "gridPos": { "x": 16, "y": 20, "w": 8, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT p.type_name as \"Payment Type\", COUNT(*) as \"Transactions\", ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) as \"Share %\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_payment_type p ON f.payment_type_sk = p.payment_type_sk GROUP BY p.type_name ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "xField": "Payment Type",
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Weekday vs Weekend Transaction Volume",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 28, "w": 8, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT CASE WHEN is_weekend THEN 'Weekend' ELSE 'Weekday' END as \"Day Type\", COUNT(*) as \"Transactions\", ROUND(AVG(amount_inr), 2) as \"Avg Amount\" FROM dev_marts.fact_transactions GROUP BY is_weekend",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": { "xField": "Day Type" }
+    },
+    {
+      "id": 14,
+      "title": "Festival vs Normal Day — Avg Transaction (₹)",
+      "type": "bargauge",
+      "gridPos": { "x": 8, "y": 28, "w": 8, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT 'Festival Day' as \"Day\", ROUND(AVG(amount_inr), 2) as \"Avg Amount\" FROM dev_marts.fact_transactions WHERE is_festival = true UNION ALL SELECT 'Normal Day' as \"Day\", ROUND(AVG(amount_inr), 2) as \"Avg Amount\" FROM dev_marts.fact_transactions WHERE is_festival = false",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^Avg Amount$/", "values": true },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyINR",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Transaction Amount Distribution by Bucket",
+      "type": "barchart",
+      "gridPos": { "x": 16, "y": 28, "w": 8, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT amount_bucket as \"Amount Bucket\", COUNT(*) as \"Transactions\" FROM dev_marts.fact_transactions GROUP BY amount_bucket ORDER BY MIN(amount_inr)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": { "xField": "Amount Bucket", "orientation": "horizontal" }
+    },
+    {
+      "id": 16,
+      "title": "North vs South vs East vs West — Transaction Volume",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 36, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT l.region as \"Region\", COUNT(*) as \"Transactions\", ROUND(SUM(f.amount_inr)/1000000, 2) as \"Amount (M INR)\" FROM dev_marts.fact_transactions f JOIN dev_marts.dim_location l ON f.location_sk = l.location_sk GROUP BY l.region ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": { "xField": "Region" }
+    },
+    {
+      "id": 17,
+      "title": "Device Type Usage",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 36, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [
+        {
+          "rawSql": "SELECT device_type as \"Device\", COUNT(*) as \"Transactions\", ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) as \"Share %\" FROM dev_marts.fact_transactions GROUP BY device_type ORDER BY COUNT(*) DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "xField": "Device",
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    }
+  ]
+}
